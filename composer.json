@@ -1,0 +1,26 @@
+{
+    "name": "zoonru/pyrospy",
+    "description": "Adapter from phpspy to pyroscope",
+    "type": "project",
+    "license": "MIT",
+    "keywords": [
+        "phpspy",
+        "pyroscope",
+        "profiler",
+        "adapter"
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=7.4",
+        "ext-mbstring": "*",
+        "ext-json": "*",
+        "ext-curl": "*",
+        "symfony/console": "^6",
+        "symfony/polyfill-php81": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Zoon\\PyroSpy\\": "app/"
+        }
+    }
+}
