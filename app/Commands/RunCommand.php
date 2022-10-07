@@ -8,6 +8,7 @@ use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Zoon\PyroSpy\Plugins\PluginInterface;
 use Zoon\PyroSpy\Processor;
 use Zoon\PyroSpy\Sender;
 
@@ -21,7 +22,7 @@ class RunCommand extends Command {
 			->setDefinition(new InputDefinition([
 				new InputOption(
 					'pyroscope',
-					'p',
+					's',
 					InputOption::VALUE_REQUIRED,
 					'Url of the pyroscope server. Example: https://your-pyroscope-sever.com'
 				),
@@ -56,9 +57,16 @@ class RunCommand extends Command {
 					'tags',
 					't',
 					InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
-					'Added tags to samples. Example: host=server1, role=cli',
+					'Add tags to samples. Example: host=server1, role=cli',
 					[]
 				),
+                new InputOption(
+                    'plugins',
+                    'p',
+                    InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
+                    'Process trace and phpspy comments/tags with custom class. Can be class or folder with classes',
+                    []
+                ),
 			]))
 		;
 	}
@@ -88,19 +96,42 @@ class RunCommand extends Command {
 
 		$tags = [];
 		foreach ((array) $input->getOption('tags') as $tag) {
-			if (!str_contains($tag, '=')) {
+			if (strpos($tag, '=') === false) {
 				throw new InvalidArgumentException('Invalid tag format');
 			}
 			[$name, $value] = explode('=', $tag);
 			$tags[$name] = $value;
 		}
 
+        $plugins = [];
+        foreach ((array) $input->getOption('plugins') as $pluginPath) {
+            if (is_dir($pluginPath)) {
+                $globPath = str_replace('//', '/', $pluginPath . '/*.php');
+                foreach (glob($globPath) as $file) {
+                    $plugins[] = self::getClassFromPath($file);
+                }
+            } else {
+                $plugins[] = self::getClassFromPath($pluginPath);
+            }
+        }
+
 		$processor = new Processor(
 			$interval,
 			$batch,
-			new Sender($pyroscope, $app, $rateHz, $tags)
+			new Sender($pyroscope, $app, $rateHz, $tags),
+            array_values(array_filter($plugins))
 		);
 		$processor->process();
 		return Command::SUCCESS;
 	}
+
+    private static function getClassFromPath(string $path): ?PluginInterface {
+        if (substr($path, -4, 4 ) !== '.php') {
+            throw new InvalidArgumentException('Plugin must be php file');
+        }
+        require_once $path;
+        $pathArray = explode('/', $path);
+        $class = str_replace('.php', '', array_pop($pathArray));
+        return $class ? new ("Zoon\PyroSpy\Plugins\\$class")() : null;
+    }
 }

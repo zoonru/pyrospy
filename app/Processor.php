@@ -6,6 +6,7 @@ use Generator;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use Zoon\PyroSpy\Plugins\PluginInterface;
 
 final class Processor {
 
@@ -15,18 +16,21 @@ final class Processor {
 	private int $tsStart = 0;
 	private int $tsEnd;
 	/**
-	 * @var array<string, int>
+	 * @var array<string, array<string, int>>
 	 */
 	private array $results;
 
 	private Sender $sender;
+    /** @var list<PluginInterface> */
+    private array $plugins = [];
 
 
-	public function __construct(int $interval, int $batchLimit, Sender $sender) {
+    public function __construct(int $interval, int $batchLimit, Sender $sender, array $plugins = []) {
 		$this->interval = $interval;
 		$this->sender = $sender;
 		$this->init();
 		$this->batchLimit = $batchLimit;
+        $this->plugins = $plugins;
 	}
 
 	public function __destruct() {
@@ -51,6 +55,7 @@ final class Processor {
 
 			if ($isEndOfTrace && count($sample) > 0) {
 				try {
+                    $tags = self::extractTags($sample);
 					$samplePrepared = self::prepareSample($sample);
 					self::checkSample($samplePrepared);
 				} catch (Throwable $e) {
@@ -60,8 +65,11 @@ final class Processor {
 					continue;
 				}
 
+                foreach ($this->plugins as $plugin) {
+                    [$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
+                }
 				$key = self::stringifyTrace($samplePrepared);
-				$this->groupTrace($key);
+				$this->groupTrace($tags, $key);
 				$this->sendResults();
 
 				$sample = [];
@@ -76,6 +84,9 @@ final class Processor {
 	private static function prepareSample(array $sample): array {
 		$samplePrepared = [];
 		foreach ($sample as $item) {
+            if (!is_numeric(substr($item, 0, 1))) {
+                continue;
+            }
 			$item = explode(' ', $item);
 			if (count($item) !== 3) {
 				throw new InvalidArgumentException('Invalid sample shape');
@@ -85,6 +96,26 @@ final class Processor {
 		}
 		return $samplePrepared;
 	}
+
+    /**
+     * @param list<string> $sample
+     * @return
+     */
+    private static function extractTags(array $sample): array {
+        $tags = [];
+        foreach ($sample as $item) {
+            if (!is_string($item) || substr($item, 0, 1) !== '#') {
+                continue;
+            }
+            $item = explode(' ', $item);
+            if (count($item) !== 4) {
+                continue;
+            }
+            [$hashtag, $tag, $equalsing, $value] = $item;
+            $tags[$tag] = $value;
+        }
+        return $tags;
+    }
 
 	/**
 	 * @param array<int|string, array{0:string, 1:string}> $samplePrepared
@@ -126,13 +157,8 @@ final class Processor {
 		while (!feof(STDIN)) {
 			$line = trim(fgets(STDIN));
 
-			//Skip comments from phpspy
-			if (str_starts_with($line, '#')) {
-				continue;
-			}
-
 			//fix trace with eval
-			if (str_contains($line, ' : eval()\'d code:')) {
+			if (strpos($line, ' : eval()\'d code:') !== false) {
 				$line = preg_replace('~\((\d+)\) : eval\(\)\'d code:.*$~u', ':$1', $line);
 			}
 
@@ -141,22 +167,35 @@ final class Processor {
 
 	}
 
-	private function groupTrace(string $key): void {
-		if (!array_key_exists($key, $this->results)) {
-			$this->results[$key] = 0;
+	private function groupTrace(array $tags, string $key): void {
+        ksort($tags);
+        $tagsKey = serialize($tags);
+        if (!array_key_exists($tagsKey, $this->results)) {
+            $this->results[$tagsKey] = [];
+        }
+		if (!array_key_exists($key, $this->results[$tagsKey])) {
+			$this->results[$tagsKey][$key] = 0;
 		}
-		$this->results[$key]++;
+		$this->results[$tagsKey][$key]++;
 	}
 
 	private function sendResults(bool $force = false): void {
-		if (!$force && time() < $this->tsEnd && count($this->results) < $this->batchLimit) {
+		if (!$force && time() < $this->tsEnd && $this->countResults() < $this->batchLimit) {
 			return;
 		}
 
-		if (count($this->results) > 0) {
-			$this->sender->sendSample($this->tsStart, time(), $this->results);
+		foreach ($this->results  as $tagSerialized => $results) {
+			$this->sender->sendSample($this->tsStart, time(), $results, unserialize($tagSerialized));
 		}
 
 		$this->init();
 	}
+
+    private function countResults(): int {
+        $count = 0;
+        foreach ($this->results as $tagResuts) {
+            $count += count($tagResuts);
+        }
+        return $count;
+    }
 }

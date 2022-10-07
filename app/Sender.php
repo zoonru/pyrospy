@@ -33,7 +33,6 @@ class Sender {
 	 */
 	public function sendSample(int $fromTs, int $toTs, array $samples, array $tags = []): bool {
 		$url = $this->getUrl($tags, $fromTs, $toTs);
-
 		curl_setopt($this->curl, CURLOPT_URL, $url);
 		curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'POST');
 		curl_setopt($this->curl, CURLOPT_POSTFIELDS, self::prepareBody($samples));
