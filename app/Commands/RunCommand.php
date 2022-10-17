@@ -132,6 +132,10 @@ class RunCommand extends Command {
         require_once $path;
         $pathArray = explode('/', $path);
         $class = str_replace('.php', '', array_pop($pathArray));
-        return $class ? new ("Zoon\PyroSpy\Plugins\\$class")() : null;
+		if (!$class) {
+			return null;
+		}
+		$class = "Zoon\PyroSpy\Plugins\\$class";
+		return new $class();
     }
 }
