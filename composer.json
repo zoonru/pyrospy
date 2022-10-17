@@ -15,7 +15,7 @@
         "ext-mbstring": "*",
         "ext-json": "*",
         "ext-curl": "*",
-        "symfony/console": "^6",
+        "symfony/console": "^5|^6",
         "symfony/polyfill-php81": "*"
     },
     "autoload": {
