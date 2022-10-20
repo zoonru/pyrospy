@@ -20,6 +20,10 @@ Adapter from [phpspy](https://github.com/adsr/phpspy) to [pyroscope.io](https://
   </tr>
 </table>
 
+## Phpspy requirements
+- `apt install binutils` for Ubuntu/Debian
+- To use in docker container it must be `privileged` or with capability `SYS_PTRACE`
+
 ## Parameters:
 ```text
 Usage:
