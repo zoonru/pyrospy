@@ -2,49 +2,53 @@
 
 namespace Zoon\PyroSpy;
 
-use RuntimeException;
+use Amp\Http\Client\HttpClient;
+use Amp\Http\Client\HttpClientBuilder;
+use Amp\Http\Client\Request;
 
-class Sender {
+final class Sender {
 
-	private string $pyroscopeHost;
-	/** @var resource|\CurlHandle */
-	private $curl;
-	private string $appName;
+	private readonly HttpClient $client;
+
 	/**
-	 * @var array<string, string>
+	 * @param array<string, string> $tags
 	 */
-	private array $tags;
-	private int $rateHz;
-
-	public function __construct(string $pyroscopeHost, string $appName, int $rateHz, array $tags = []) {
-		$this->pyroscopeHost = $pyroscopeHost;
-		$this->curl = curl_init();
-		if (!$this->curl) {
-			throw new RuntimeException('Cant init curl');
-		}
-		$this->appName = $appName;
-		$this->tags = $tags;
-		$this->rateHz = $rateHz;
+	public function __construct(
+		private readonly string $pyroscopeHost,
+		private readonly string $appName,
+		private readonly int $rateHz,
+		private readonly array $tags,
+	) {
+		$this->client = (new HttpClientBuilder())
+			->retry(0)
+			->followRedirects(0)
+			->build()
+		;
 	}
 
 	/**
 	 * @param array<string, int> $samples
-	 * @param array<string,string> $tags
+	 * @param array<string, string> $tags
 	 */
-	public function sendSample(int $fromTs, int $toTs, array $samples, array $tags = []): bool {
+	public function sendSample(int $fromTs, int $toTs, array $samples, array $tags): bool {
 		$url = $this->getUrl($tags, $fromTs, $toTs);
-		curl_setopt($this->curl, CURLOPT_URL, $url);
-		curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'POST');
-		curl_setopt($this->curl, CURLOPT_POSTFIELDS, self::prepareBody($samples));
-		curl_exec($this->curl);
-		$info = curl_getinfo($this->curl);
-
-		if ($info['http_code'] !== 200) {
-			printf("\nerror on request to url '%s', status code: %s, error: %s", $url, $info['http_code'], curl_error($this->curl));
+		try {
+			$request = new Request($url, 'POST', self::prepareBody($samples));
+			$request->setTcpConnectTimeout(5 * 60);
+			$request->setTlsHandshakeTimeout(5 * 60);
+			$request->setTransferTimeout(60 * 60);
+			$request->setInactivityTimeout(60 * 60);
+			$response = $this->client->request($request);
+			if ($response->getStatus() === 200) {
+				return true;
+			} else {
+				printf("\nerror on request to url '%s', status code: %s", $url, $response->getStatus());
+				return false;
+			}
+		} catch (\Throwable $exception) {
+			printf("\nerror on request to url '%s', exception message: %s", $url, $exception->getMessage());
 			return false;
 		}
-
-		return true;
 	}
 
 	/**

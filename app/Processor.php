@@ -2,16 +2,17 @@
 
 namespace Zoon\PyroSpy;
 
+use Amp\Sync\LocalSemaphore;
+use Amp\Sync\Semaphore;
 use Generator;
 use InvalidArgumentException;
-use RuntimeException;
 use Throwable;
 use Zoon\PyroSpy\Plugins\PluginInterface;
+use function Amp\async;
+use function Amp\ByteStream\getStdin;
+use function Amp\ByteStream\splitLines;
 
 final class Processor {
-
-	private int $interval;
-	private int $batchLimit;
 
 	private int $tsStart = 0;
 	private int $tsEnd;
@@ -19,22 +20,20 @@ final class Processor {
 	 * @var array<string, array<string, int>>
 	 */
 	private array $results;
+	private readonly Semaphore $senderSemaphore;
 
-	private Sender $sender;
-    /** @var list<PluginInterface> */
-    private array $plugins = [];
-
-
-    public function __construct(int $interval, int $batchLimit, Sender $sender, array $plugins = []) {
-		$this->interval = $interval;
-		$this->sender = $sender;
+	/**
+	 * @param list<PluginInterface> $plugins
+	 */
+	public function __construct(
+		private readonly int $interval,
+		private readonly int $batchLimit,
+		private readonly Sender $sender,
+		private readonly array $plugins,
+		int $concurrentRequestLimit,
+	) {
 		$this->init();
-		$this->batchLimit = $batchLimit;
-        $this->plugins = $plugins;
-	}
-
-	public function __destruct() {
-		$this->sendResults(true);
+		$this->senderSemaphore = new LocalSemaphore($concurrentRequestLimit);
 	}
 
 	private function init(): void {
@@ -152,12 +151,8 @@ final class Processor {
 	 * @return Generator<string>
 	 */
 	private static function getLine(): Generator {
-		if (STDIN === false) {
-			throw new RuntimeException('Can\'t open STDIN');
-		}
-
-		while (!feof(STDIN)) {
-			$line = trim(fgets(STDIN));
+		foreach (splitLines(getStdin()) as $line) {
+			$line = trim($line);
 
 			//fix trace with eval
 			if (strpos($line, ' : eval()\'d code:') !== false) {
@@ -166,7 +161,6 @@ final class Processor {
 
 			yield $line;
 		}
-
 	}
 
 	private function groupTrace(array $tags, string $key): void {
@@ -182,12 +176,21 @@ final class Processor {
 	}
 
 	private function sendResults(bool $force = false): void {
-		if (!$force && time() < $this->tsEnd && $this->countResults() < $this->batchLimit) {
+		$currentTime = time();
+		if (!$force && $currentTime < $this->tsEnd && $this->countResults() < $this->batchLimit) {
 			return;
 		}
 
-		foreach ($this->results  as $tagSerialized => $results) {
-			$this->sender->sendSample($this->tsStart, time(), $results, unserialize($tagSerialized));
+		$tsStart = $this->tsStart;
+		foreach ($this->results as $tagSerialized => $results) {
+			$lock = $this->senderSemaphore->acquire();
+			async(function () use ($tsStart, $currentTime, $results, $tagSerialized, $lock) {
+				try {
+					$this->sender->sendSample($tsStart, $currentTime, $results, unserialize($tagSerialized));
+				} finally {
+					$lock->release();
+				}
+			});
 		}
 
 		$this->init();

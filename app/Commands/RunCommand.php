@@ -3,6 +3,7 @@
 namespace Zoon\PyroSpy\Commands;
 
 use InvalidArgumentException;
+use Revolt\EventLoop;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -38,6 +39,13 @@ class RunCommand extends Command {
 					InputOption::VALUE_OPTIONAL,
 					'Sample rate in Hz. Used to convert number of samples to CPU time',
 					100
+				),
+				new InputOption(
+					'concurrentRequestLimit',
+					'c',
+					InputOption::VALUE_OPTIONAL,
+					'Limiting the HTTP client to N concurrent requests, so the HTTP pyroscope server doesn\'t get overwhelmed',
+					30,
 				),
 				new InputOption(
 					'interval',
@@ -93,6 +101,10 @@ class RunCommand extends Command {
 		if ($rateHz <= 0) {
 			throw new InvalidArgumentException('rateHz must be positive value');
 		}
+		$concurrentRequestLimit = (int)$input->getOption('concurrentRequestLimit');
+		if ($concurrentRequestLimit <= 0) {
+			throw new InvalidArgumentException('concurrentRequestLimit must be positive value');
+		}
 
 		$tags = [];
 		foreach ((array) $input->getOption('tags') as $tag) {
@@ -119,9 +131,11 @@ class RunCommand extends Command {
 			$interval,
 			$batch,
 			new Sender($pyroscope, $app, $rateHz, $tags),
-            array_values(array_filter($plugins))
+			array_values(array_filter($plugins)),
+			$concurrentRequestLimit,
 		);
 		$processor->process();
+		EventLoop::run();
 		return Command::SUCCESS;
 	}
 
