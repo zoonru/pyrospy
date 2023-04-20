@@ -60,13 +60,13 @@ class RunCommand extends Command {
 					'Add tags to samples. Example: host=server1, role=cli',
 					[]
 				),
-                new InputOption(
-                    'plugins',
-                    'p',
-                    InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
-                    'Process trace and phpspy comments/tags with custom class. Can be class or folder with classes',
-                    []
-                ),
+				new InputOption(
+					'plugins',
+					'p',
+					InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
+					'Process trace and phpspy comments/tags with custom class. Can be class or folder with classes',
+					[]
+				),
 			]))
 		;
 	}
@@ -103,17 +103,17 @@ class RunCommand extends Command {
 			$tags[$name] = $value;
 		}
 
-        $plugins = [];
-        foreach ((array) $input->getOption('plugins') as $pluginPath) {
-            if (is_dir($pluginPath)) {
-                $globPath = str_replace('//', '/', $pluginPath . '/*.php');
-                foreach (glob($globPath) as $file) {
-                    $plugins[] = self::getClassFromPath($file);
-                }
-            } else {
-                $plugins[] = self::getClassFromPath($pluginPath);
-            }
-        }
+		$plugins = [];
+		foreach ((array) $input->getOption('plugins') as $pluginPath) {
+			if (is_dir($pluginPath)) {
+				$globPath = str_replace('//', '/', $pluginPath . '/*.php');
+				foreach (glob($globPath) as $file) {
+					$plugins[] = self::getClassFromPath($file);
+				}
+			} else {
+				$plugins[] = self::getClassFromPath($pluginPath);
+			}
+		}
 
 		$processor = new Processor(
 			$interval,
@@ -125,17 +125,17 @@ class RunCommand extends Command {
 		return Command::SUCCESS;
 	}
 
-    private static function getClassFromPath(string $path): ?PluginInterface {
-        if (substr($path, -4, 4 ) !== '.php') {
-            throw new InvalidArgumentException('Plugin must be php file');
-        }
-        require_once $path;
-        $pathArray = explode('/', $path);
-        $class = str_replace('.php', '', array_pop($pathArray));
+	private static function getClassFromPath(string $path): ?PluginInterface {
+		if (substr($path, -4, 4 ) !== '.php') {
+			throw new InvalidArgumentException('Plugin must be php file');
+		}
+		require_once $path;
+		$pathArray = explode('/', $path);
+		$class = str_replace('.php', '', array_pop($pathArray));
 		if (!$class) {
 			return null;
 		}
 		$class = "Zoon\PyroSpy\Plugins\\$class";
 		return new $class();
-    }
+	}
 }

@@ -55,7 +55,7 @@ final class Processor {
 
 			if ($isEndOfTrace && count($sample) > 0) {
 				try {
-                    $tags = self::extractTags($sample);
+					$tags = self::extractTags($sample);
 					$samplePrepared = self::prepareSample($sample);
 					self::checkSample($samplePrepared);
 				} catch (Throwable $e) {
@@ -65,9 +65,9 @@ final class Processor {
 					continue;
 				}
 
-                foreach ($this->plugins as $plugin) {
-                    [$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
-                }
+				foreach ($this->plugins as $plugin) {
+					[$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
+				}
 				$key = self::stringifyTrace($samplePrepared);
 				$this->groupTrace($tags, $key);
 				$this->sendResults();
@@ -75,6 +75,8 @@ final class Processor {
 				$sample = [];
 			}
 		}
+
+		$this->sendResults(true);
 	}
 
 	/**
@@ -84,9 +86,9 @@ final class Processor {
 	private static function prepareSample(array $sample): array {
 		$samplePrepared = [];
 		foreach ($sample as $item) {
-            if (!is_numeric(substr($item, 0, 1))) {
-                continue;
-            }
+			if (!is_numeric(substr($item, 0, 1))) {
+				continue;
+			}
 			$item = explode(' ', $item);
 			if (count($item) !== 3) {
 				throw new InvalidArgumentException('Invalid sample shape');
@@ -97,25 +99,25 @@ final class Processor {
 		return $samplePrepared;
 	}
 
-    /**
-     * @param list<string> $sample
-     * @return
-     */
-    private static function extractTags(array $sample): array {
-        $tags = [];
-        foreach ($sample as $item) {
-            if (!is_string($item) || substr($item, 0, 1) !== '#') {
-                continue;
-            }
-            $item = explode(' ', $item);
-            if (count($item) !== 4) {
-                continue;
-            }
-            [$hashtag, $tag, $equalsing, $value] = $item;
-            $tags[$tag] = $value;
-        }
-        return $tags;
-    }
+	/**
+	 * @param list<string> $sample
+	 * @return
+	 */
+	private static function extractTags(array $sample): array {
+		$tags = [];
+		foreach ($sample as $item) {
+			if (!is_string($item) || substr($item, 0, 1) !== '#') {
+				continue;
+			}
+			$item = explode(' ', $item);
+			if (count($item) !== 4) {
+				continue;
+			}
+			[$hashtag, $tag, $equalsing, $value] = $item;
+			$tags[$tag] = $value;
+		}
+		return $tags;
+	}
 
 	/**
 	 * @param array<int|string, array{0:string, 1:string}> $samplePrepared
@@ -168,11 +170,11 @@ final class Processor {
 	}
 
 	private function groupTrace(array $tags, string $key): void {
-        ksort($tags);
-        $tagsKey = serialize($tags);
-        if (!array_key_exists($tagsKey, $this->results)) {
-            $this->results[$tagsKey] = [];
-        }
+		ksort($tags);
+		$tagsKey = serialize($tags);
+		if (!array_key_exists($tagsKey, $this->results)) {
+			$this->results[$tagsKey] = [];
+		}
 		if (!array_key_exists($key, $this->results[$tagsKey])) {
 			$this->results[$tagsKey][$key] = 0;
 		}
@@ -191,11 +193,11 @@ final class Processor {
 		$this->init();
 	}
 
-    private function countResults(): int {
-        $count = 0;
-        foreach ($this->results as $tagResuts) {
-            $count += count($tagResuts);
-        }
-        return $count;
-    }
+	private function countResults(): int {
+		$count = 0;
+		foreach ($this->results as $tagResuts) {
+			$count += count($tagResuts);
+		}
+		return $count;
+	}
 }
