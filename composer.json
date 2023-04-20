@@ -22,5 +22,8 @@
         "psr-4": {
             "Zoon\\PyroSpy\\": "app/"
         }
+    },
+    "require-dev": {
+        "psalm/phar": "^5.9"
     }
 }
