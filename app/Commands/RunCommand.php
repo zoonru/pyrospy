@@ -45,7 +45,7 @@ class RunCommand extends Command {
 					'c',
 					InputOption::VALUE_OPTIONAL,
 					'Limiting the HTTP client to N concurrent requests, so the HTTP pyroscope server doesn\'t get overwhelmed',
-					30,
+					10,
 				),
 				new InputOption(
 					'interval',
