@@ -2,13 +2,18 @@
 
 namespace Zoon\PyroSpy;
 
+use Amp\Future;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
+use Amp\Sync\LocalSemaphore;
+use function Amp\async;
+use function Amp\delay;
 
 final class Sender {
 
 	private readonly HttpClient $client;
+	private readonly LocalSemaphore $concurrentRequestLimit;
 
 	/**
 	 * @param array<string, string> $tags
@@ -18,37 +23,47 @@ final class Sender {
 		private readonly string $appName,
 		private readonly int $rateHz,
 		private readonly array $tags,
+		int $concurrentRequestLimit,
 	) {
 		$this->client = (new HttpClientBuilder())
 			->retry(0)
 			->followRedirects(0)
 			->build()
 		;
+		$this->concurrentRequestLimit = new LocalSemaphore($concurrentRequestLimit);
 	}
 
 	/**
 	 * @param array<string, int> $samples
 	 * @param array<string, string> $tags
+	 * @return Future<bool>
 	 */
-	public function sendSample(int $fromTs, int $toTs, array $samples, array $tags): bool {
-		$url = $this->getUrl($tags, $fromTs, $toTs);
-		try {
-			$request = new Request($url, 'POST', self::prepareBody($samples));
-			$request->setTcpConnectTimeout(5 * 60);
-			$request->setTlsHandshakeTimeout(5 * 60);
-			$request->setTransferTimeout(60 * 60);
-			$request->setInactivityTimeout(60 * 60);
-			$response = $this->client->request($request);
-			if ($response->getStatus() === 200) {
-				return true;
-			} else {
-				printf("\nerror on request to url '%s', status code: %s", $url, $response->getStatus());
-				return false;
+	public function sendSample(int $fromTs, int $toTs, array $samples, array $tags): Future {
+		return async(function () use ($fromTs, $toTs, $samples, $tags) {
+			$lock = $this->concurrentRequestLimit->acquire();
+			try {
+				$url = $this->getUrl($tags, $fromTs, $toTs);
+				try {
+					$request = new Request($url, 'POST', self::prepareBody($samples));
+					$request->setTcpConnectTimeout(5 * 60);
+					$request->setTlsHandshakeTimeout(5 * 60);
+					$request->setTransferTimeout(60 * 60);
+					$request->setInactivityTimeout(60 * 60);
+					$response = $this->client->request($request);
+					if ($response->getStatus() === 200) {
+						return true;
+					} else {
+						printf("\nerror on request to url '%s', status code: %s", $url, $response->getStatus());
+						return false;
+					}
+				} catch (\Throwable $exception) {
+					printf("\nerror on request to url '%s', exception message: %s", $url, $exception->getMessage());
+					return false;
+				}
+			} finally {
+				$lock->release();
 			}
-		} catch (\Throwable $exception) {
-			printf("\nerror on request to url '%s', exception message: %s", $url, $exception->getMessage());
-			return false;
-		}
+		});
 	}
 
 	/**

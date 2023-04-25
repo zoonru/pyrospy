@@ -8,7 +8,6 @@ use Generator;
 use InvalidArgumentException;
 use Throwable;
 use Zoon\PyroSpy\Plugins\PluginInterface;
-use function Amp\async;
 use function Amp\ByteStream\getStdin;
 use function Amp\ByteStream\splitLines;
 
@@ -20,7 +19,7 @@ final class Processor {
 	 * @var array<string, array<string, int>>
 	 */
 	private array $results;
-	private readonly Semaphore $senderSemaphore;
+	private readonly Semaphore $sendSampleFutureLimit;
 
 	/**
 	 * @param list<PluginInterface> $plugins
@@ -30,10 +29,10 @@ final class Processor {
 		private readonly int $batchLimit,
 		private readonly Sender $sender,
 		private readonly array $plugins,
-		int $concurrentRequestLimit,
+		int $sendSampleFutureLimit,
 	) {
 		$this->init();
-		$this->senderSemaphore = new LocalSemaphore($concurrentRequestLimit);
+		$this->sendSampleFutureLimit = new LocalSemaphore($sendSampleFutureLimit);
 	}
 
 	private function init(): void {
@@ -183,14 +182,14 @@ final class Processor {
 
 		$tsStart = $this->tsStart;
 		foreach ($this->results as $tagSerialized => $results) {
-			$lock = $this->senderSemaphore->acquire();
-			async(function () use ($tsStart, $currentTime, $results, $tagSerialized, $lock) {
-				try {
-					$this->sender->sendSample($tsStart, $currentTime, $results, unserialize($tagSerialized));
-				} finally {
-					$lock->release();
-				}
-			});
+			$futureLock = $this->sendSampleFutureLimit->acquire();
+			$this
+				->sender
+				->sendSample($tsStart, $currentTime, $results, unserialize($tagSerialized))
+				->finally(static function () use ($futureLock): void {
+					$futureLock->release();
+				})
+			;
 		}
 
 		$this->init();

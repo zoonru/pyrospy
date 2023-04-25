@@ -48,6 +48,13 @@ class RunCommand extends Command {
 					10,
 				),
 				new InputOption(
+					'sendSampleFutureLimit',
+					'f',
+					InputOption::VALUE_OPTIONAL,
+					'Limiting the Send Sample futures buffer to N so as not to get a memory overflow',
+					10_000,
+				),
+				new InputOption(
 					'interval',
 					'i',
 					InputOption::VALUE_REQUIRED,
@@ -105,6 +112,10 @@ class RunCommand extends Command {
 		if ($concurrentRequestLimit <= 0) {
 			throw new InvalidArgumentException('concurrentRequestLimit must be positive value');
 		}
+		$sendSampleFutureLimit = (int)$input->getOption('sendSampleFutureLimit');
+		if ($sendSampleFutureLimit <= 0) {
+			throw new InvalidArgumentException('sendSampleFutureLimit must be positive value');
+		}
 
 		$tags = [];
 		foreach ((array) $input->getOption('tags') as $tag) {
@@ -130,9 +141,9 @@ class RunCommand extends Command {
 		$processor = new Processor(
 			$interval,
 			$batch,
-			new Sender($pyroscope, $app, $rateHz, $tags),
+			new Sender($pyroscope, $app, $rateHz, $tags, $concurrentRequestLimit),
 			array_values(array_filter($plugins)),
-			$concurrentRequestLimit,
+			$sendSampleFutureLimit,
 		);
 		$processor->process();
 		EventLoop::run();
