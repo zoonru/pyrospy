@@ -3,6 +3,7 @@
 namespace Zoon\PyroSpy\Commands;
 
 use InvalidArgumentException;
+use Revolt\EventLoop;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -40,6 +41,20 @@ class RunCommand extends Command {
 					100
 				),
 				new InputOption(
+					'concurrentRequestLimit',
+					'c',
+					InputOption::VALUE_OPTIONAL,
+					'Limiting the HTTP client to N concurrent requests, so the HTTP pyroscope server doesn\'t get overwhelmed',
+					10,
+				),
+				new InputOption(
+					'sendSampleFutureLimit',
+					'f',
+					InputOption::VALUE_OPTIONAL,
+					'Limiting the Send Sample futures buffer to N so as not to get a memory overflow',
+					10_000,
+				),
+				new InputOption(
 					'interval',
 					'i',
 					InputOption::VALUE_REQUIRED,
@@ -60,13 +75,13 @@ class RunCommand extends Command {
 					'Add tags to samples. Example: host=server1, role=cli',
 					[]
 				),
-                new InputOption(
-                    'plugins',
-                    'p',
-                    InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
-                    'Process trace and phpspy comments/tags with custom class. Can be class or folder with classes',
-                    []
-                ),
+				new InputOption(
+					'plugins',
+					'p',
+					InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
+					'Process trace and phpspy comments/tags with custom class. Can be class or folder with classes',
+					[]
+				),
 			]))
 		;
 	}
@@ -93,6 +108,14 @@ class RunCommand extends Command {
 		if ($rateHz <= 0) {
 			throw new InvalidArgumentException('rateHz must be positive value');
 		}
+		$concurrentRequestLimit = (int)$input->getOption('concurrentRequestLimit');
+		if ($concurrentRequestLimit <= 0) {
+			throw new InvalidArgumentException('concurrentRequestLimit must be positive value');
+		}
+		$sendSampleFutureLimit = (int)$input->getOption('sendSampleFutureLimit');
+		if ($sendSampleFutureLimit <= 0) {
+			throw new InvalidArgumentException('sendSampleFutureLimit must be positive value');
+		}
 
 		$tags = [];
 		foreach ((array) $input->getOption('tags') as $tag) {
@@ -103,39 +126,41 @@ class RunCommand extends Command {
 			$tags[$name] = $value;
 		}
 
-        $plugins = [];
-        foreach ((array) $input->getOption('plugins') as $pluginPath) {
-            if (is_dir($pluginPath)) {
-                $globPath = str_replace('//', '/', $pluginPath . '/*.php');
-                foreach (glob($globPath) as $file) {
-                    $plugins[] = self::getClassFromPath($file);
-                }
-            } else {
-                $plugins[] = self::getClassFromPath($pluginPath);
-            }
-        }
+		$plugins = [];
+		foreach ((array) $input->getOption('plugins') as $pluginPath) {
+			if (is_dir($pluginPath)) {
+				$globPath = str_replace('//', '/', $pluginPath . '/*.php');
+				foreach (glob($globPath) as $file) {
+					$plugins[] = self::getClassFromPath($file);
+				}
+			} else {
+				$plugins[] = self::getClassFromPath($pluginPath);
+			}
+		}
 
 		$processor = new Processor(
 			$interval,
 			$batch,
-			new Sender($pyroscope, $app, $rateHz, $tags),
-            array_values(array_filter($plugins))
+			new Sender($pyroscope, $app, $rateHz, $tags, $concurrentRequestLimit),
+			array_values(array_filter($plugins)),
+			$sendSampleFutureLimit,
 		);
 		$processor->process();
+		EventLoop::run();
 		return Command::SUCCESS;
 	}
 
-    private static function getClassFromPath(string $path): ?PluginInterface {
-        if (substr($path, -4, 4 ) !== '.php') {
-            throw new InvalidArgumentException('Plugin must be php file');
-        }
-        require_once $path;
-        $pathArray = explode('/', $path);
-        $class = str_replace('.php', '', array_pop($pathArray));
+	private static function getClassFromPath(string $path): ?PluginInterface {
+		if (substr($path, -4, 4 ) !== '.php') {
+			throw new InvalidArgumentException('Plugin must be php file');
+		}
+		require_once $path;
+		$pathArray = explode('/', $path);
+		$class = str_replace('.php', '', array_pop($pathArray));
 		if (!$class) {
 			return null;
 		}
 		$class = "Zoon\PyroSpy\Plugins\\$class";
 		return new $class();
-    }
+	}
 }

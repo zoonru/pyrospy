@@ -2,16 +2,16 @@
 
 namespace Zoon\PyroSpy;
 
+use Amp\Sync\LocalSemaphore;
+use Amp\Sync\Semaphore;
 use Generator;
 use InvalidArgumentException;
-use RuntimeException;
 use Throwable;
 use Zoon\PyroSpy\Plugins\PluginInterface;
+use function Amp\ByteStream\getStdin;
+use function Amp\ByteStream\splitLines;
 
 final class Processor {
-
-	private int $interval;
-	private int $batchLimit;
 
 	private int $tsStart = 0;
 	private int $tsEnd;
@@ -19,22 +19,20 @@ final class Processor {
 	 * @var array<string, array<string, int>>
 	 */
 	private array $results;
+	private readonly Semaphore $sendSampleFutureLimit;
 
-	private Sender $sender;
-    /** @var list<PluginInterface> */
-    private array $plugins = [];
-
-
-    public function __construct(int $interval, int $batchLimit, Sender $sender, array $plugins = []) {
-		$this->interval = $interval;
-		$this->sender = $sender;
+	/**
+	 * @param list<PluginInterface> $plugins
+	 */
+	public function __construct(
+		private readonly int $interval,
+		private readonly int $batchLimit,
+		private readonly Sender $sender,
+		private readonly array $plugins,
+		int $sendSampleFutureLimit,
+	) {
 		$this->init();
-		$this->batchLimit = $batchLimit;
-        $this->plugins = $plugins;
-	}
-
-	public function __destruct() {
-		$this->sendResults(true);
+		$this->sendSampleFutureLimit = new LocalSemaphore($sendSampleFutureLimit);
 	}
 
 	private function init(): void {
@@ -55,7 +53,7 @@ final class Processor {
 
 			if ($isEndOfTrace && count($sample) > 0) {
 				try {
-                    $tags = self::extractTags($sample);
+					$tags = self::extractTags($sample);
 					$samplePrepared = self::prepareSample($sample);
 					self::checkSample($samplePrepared);
 				} catch (Throwable $e) {
@@ -65,9 +63,9 @@ final class Processor {
 					continue;
 				}
 
-                foreach ($this->plugins as $plugin) {
-                    [$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
-                }
+				foreach ($this->plugins as $plugin) {
+					[$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
+				}
 				$key = self::stringifyTrace($samplePrepared);
 				$this->groupTrace($tags, $key);
 				$this->sendResults();
@@ -75,6 +73,8 @@ final class Processor {
 				$sample = [];
 			}
 		}
+
+		$this->sendResults(true);
 	}
 
 	/**
@@ -84,9 +84,9 @@ final class Processor {
 	private static function prepareSample(array $sample): array {
 		$samplePrepared = [];
 		foreach ($sample as $item) {
-            if (!is_numeric(substr($item, 0, 1))) {
-                continue;
-            }
+			if (!is_numeric(substr($item, 0, 1))) {
+				continue;
+			}
 			$item = explode(' ', $item);
 			if (count($item) !== 3) {
 				throw new InvalidArgumentException('Invalid sample shape');
@@ -97,25 +97,25 @@ final class Processor {
 		return $samplePrepared;
 	}
 
-    /**
-     * @param list<string> $sample
-     * @return
-     */
-    private static function extractTags(array $sample): array {
-        $tags = [];
-        foreach ($sample as $item) {
-            if (!is_string($item) || substr($item, 0, 1) !== '#') {
-                continue;
-            }
-            $item = explode(' ', $item);
-            if (count($item) !== 4) {
-                continue;
-            }
-            [$hashtag, $tag, $equalsing, $value] = $item;
-            $tags[$tag] = $value;
-        }
-        return $tags;
-    }
+	/**
+	 * @param list<string> $sample
+	 * @return
+	 */
+	private static function extractTags(array $sample): array {
+		$tags = [];
+		foreach ($sample as $item) {
+			if (!is_string($item) || substr($item, 0, 1) !== '#') {
+				continue;
+			}
+			$item = explode(' ', $item);
+			if (count($item) !== 4) {
+				continue;
+			}
+			[$hashtag, $tag, $equalsing, $value] = $item;
+			$tags[$tag] = $value;
+		}
+		return $tags;
+	}
 
 	/**
 	 * @param array<int|string, array{0:string, 1:string}> $samplePrepared
@@ -150,12 +150,8 @@ final class Processor {
 	 * @return Generator<string>
 	 */
 	private static function getLine(): Generator {
-		if (STDIN === false) {
-			throw new RuntimeException('Can\'t open STDIN');
-		}
-
-		while (!feof(STDIN)) {
-			$line = trim(fgets(STDIN));
+		foreach (splitLines(getStdin()) as $line) {
+			$line = trim($line);
 
 			//fix trace with eval
 			if (strpos($line, ' : eval()\'d code:') !== false) {
@@ -164,15 +160,14 @@ final class Processor {
 
 			yield $line;
 		}
-
 	}
 
 	private function groupTrace(array $tags, string $key): void {
-        ksort($tags);
-        $tagsKey = serialize($tags);
-        if (!array_key_exists($tagsKey, $this->results)) {
-            $this->results[$tagsKey] = [];
-        }
+		ksort($tags);
+		$tagsKey = serialize($tags);
+		if (!array_key_exists($tagsKey, $this->results)) {
+			$this->results[$tagsKey] = [];
+		}
 		if (!array_key_exists($key, $this->results[$tagsKey])) {
 			$this->results[$tagsKey][$key] = 0;
 		}
@@ -180,22 +175,31 @@ final class Processor {
 	}
 
 	private function sendResults(bool $force = false): void {
-		if (!$force && time() < $this->tsEnd && $this->countResults() < $this->batchLimit) {
+		$currentTime = time();
+		if (!$force && $currentTime < $this->tsEnd && $this->countResults() < $this->batchLimit) {
 			return;
 		}
 
-		foreach ($this->results  as $tagSerialized => $results) {
-			$this->sender->sendSample($this->tsStart, time(), $results, unserialize($tagSerialized));
+		$tsStart = $this->tsStart;
+		foreach ($this->results as $tagSerialized => $results) {
+			$futureLock = $this->sendSampleFutureLimit->acquire();
+			$this
+				->sender
+				->sendSample($tsStart, $currentTime, $results, unserialize($tagSerialized))
+				->finally(static function () use ($futureLock): void {
+					$futureLock->release();
+				})
+			;
 		}
 
 		$this->init();
 	}
 
-    private function countResults(): int {
-        $count = 0;
-        foreach ($this->results as $tagResuts) {
-            $count += count($tagResuts);
-        }
-        return $count;
-    }
+	private function countResults(): int {
+		$count = 0;
+		foreach ($this->results as $tagResuts) {
+			$count += count($tagResuts);
+		}
+		return $count;
+	}
 }
