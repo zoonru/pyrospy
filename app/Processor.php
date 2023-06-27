@@ -2,12 +2,13 @@
 
 namespace Zoon\PyroSpy;
 
-use Amp\Sync\LocalSemaphore;
-use Amp\Sync\Semaphore;
+use Amp\Future;
+use Amp\Pipeline\Queue;
 use Generator;
 use InvalidArgumentException;
 use Throwable;
 use Zoon\PyroSpy\Plugins\PluginInterface;
+use function Amp\async;
 use function Amp\ByteStream\getStdin;
 use function Amp\ByteStream\splitLines;
 
@@ -19,7 +20,8 @@ final class Processor {
 	 * @var array<string, array<string, int>>
 	 */
 	private array $results;
-	private readonly Semaphore $sendSampleFutureLimit;
+	/** @var Queue<Sample> */
+	private readonly Queue $queue;
 
 	/**
 	 * @param list<PluginInterface> $plugins
@@ -30,9 +32,10 @@ final class Processor {
 		private readonly Sender $sender,
 		private readonly array $plugins,
 		int $sendSampleFutureLimit,
+		private readonly int $concurrentRequestLimit,
 	) {
 		$this->init();
-		$this->sendSampleFutureLimit = new LocalSemaphore($sendSampleFutureLimit);
+		$this->queue = new Queue($sendSampleFutureLimit);
 	}
 
 	private function init(): void {
@@ -42,39 +45,78 @@ final class Processor {
 	}
 
 	public function process(): void {
-		$sample = [];
+		Future\await([
+			$this->runProducer(),
+			$this->runConsumer(),
+		]);
+	}
 
-		foreach (self::getLine() as $line) {
-			$isEndOfTrace = $line === '';
+	private function runProducer(): Future {
+		return async(function (): void {
+			$sample = [];
 
-			if (!$isEndOfTrace) {
-				$sample[] = $line;
-			}
+			foreach (self::getLine() as $line) {
+				$isEndOfTrace = $line === '';
 
-			if ($isEndOfTrace && count($sample) > 0) {
-				try {
-					$tags = self::extractTags($sample);
-					$samplePrepared = self::prepareSample($sample);
-					self::checkSample($samplePrepared);
-				} catch (Throwable $e) {
-					echo $e->getMessage() . PHP_EOL;
-					var_dump($sample);
-					$sample = [];
-					continue;
+				if (!$isEndOfTrace) {
+					$sample[] = $line;
 				}
 
-				foreach ($this->plugins as $plugin) {
-					[$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
+				if ($isEndOfTrace && count($sample) > 0) {
+					try {
+						try {
+							$tags = self::extractTags($sample);
+							$samplePrepared = self::prepareSample($sample);
+							self::checkSample($samplePrepared);
+						} catch (Throwable $e) {
+							echo $e->getMessage() . PHP_EOL;
+							var_dump($sample);
+							continue;
+						}
+
+						foreach ($this->plugins as $plugin) {
+							[$tags, $samplePrepared] = $plugin->process($tags, $samplePrepared);
+						}
+						$key = self::stringifyTrace($samplePrepared);
+						$this->groupTrace($tags, $key);
+
+						$currentTime = time();
+
+						if ($currentTime < $this->tsEnd && $this->countResults() < $this->batchLimit) {
+							continue;
+						}
+
+						foreach ($this->results as $tagSerialized => $results) {
+							$this->queue->push(new Sample($this->tsStart, $currentTime, $results, unserialize($tagSerialized)));
+						}
+
+						$this->init();
+					} finally {
+						$sample = [];
+					}
 				}
-				$key = self::stringifyTrace($samplePrepared);
-				$this->groupTrace($tags, $key);
-				$this->sendResults();
-
-				$sample = [];
 			}
-		}
 
-		$this->sendResults(true);
+			$currentTime = time();
+			foreach ($this->results as $tagSerialized => $results) {
+				$this->queue->push(new Sample($this->tsStart, $currentTime, $results, unserialize($tagSerialized)));
+			}
+
+			$this->queue->complete();
+		});
+	}
+
+	private function runConsumer(): Future {
+		return async(function (): void {
+			$this
+				->queue
+				->pipe()
+				->unordered()
+				->concurrent($this->concurrentRequestLimit)
+				->forEach(function (Sample $sample): void {
+					$this->sender->sendSample($sample);
+				});
+		});
 	}
 
 	/**
@@ -172,27 +214,6 @@ final class Processor {
 			$this->results[$tagsKey][$key] = 0;
 		}
 		$this->results[$tagsKey][$key]++;
-	}
-
-	private function sendResults(bool $force = false): void {
-		$currentTime = time();
-		if (!$force && $currentTime < $this->tsEnd && $this->countResults() < $this->batchLimit) {
-			return;
-		}
-
-		$tsStart = $this->tsStart;
-		foreach ($this->results as $tagSerialized => $results) {
-			$futureLock = $this->sendSampleFutureLimit->acquire();
-			$this
-				->sender
-				->sendSample($tsStart, $currentTime, $results, unserialize($tagSerialized))
-				->finally(static function () use ($futureLock): void {
-					$futureLock->release();
-				})
-			;
-		}
-
-		$this->init();
 	}
 
 	private function countResults(): int {
