@@ -3,7 +3,6 @@
 namespace Zoon\PyroSpy\Commands;
 
 use InvalidArgumentException;
-use Revolt\EventLoop;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -141,12 +140,12 @@ class RunCommand extends Command {
 		$processor = new Processor(
 			$interval,
 			$batch,
-			new Sender($pyroscope, $app, $rateHz, $tags, $concurrentRequestLimit),
+			new Sender($pyroscope, $app, $rateHz, $tags),
 			array_values(array_filter($plugins)),
 			$sendSampleFutureLimit,
+			$concurrentRequestLimit,
 		);
 		$processor->process();
-		EventLoop::run();
 		return Command::SUCCESS;
 	}
 
