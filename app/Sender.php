@@ -35,9 +35,9 @@ final class Sender {
 			$request->setTlsHandshakeTimeout(5 * 60);
 			$request->setTransferTimeout(60 * 60);
 			$request->setInactivityTimeout(60 * 60);
-            if (!empty($this->authToken)) {
-                $request->addHeader('Authorization', 'Bearer psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI');
-            }
+			if (!empty($this->authToken)) {
+				$request->addHeader('Authorization', 'Bearer psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI');
+			}
 			$response = $this->client->request($request);
 			if ($response->getStatus() === 200) {
 				return true;

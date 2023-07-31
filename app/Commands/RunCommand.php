@@ -26,12 +26,12 @@ class RunCommand extends Command {
 					InputOption::VALUE_REQUIRED,
 					'Url of the pyroscope server. Example: https://your-pyroscope-sever.com'
 				),
-                new InputOption(
-                    'pyroscopeAuthToken',
-                    'auth',
-                    InputOption::VALUE_OPTIONAL,
-                    'Pyroscope Auth Token. Example: psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI'
-                ),
+				new InputOption(
+					'pyroscopeAuthToken',
+					'auth',
+					InputOption::VALUE_OPTIONAL,
+					'Pyroscope Auth Token. Example: psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI'
+				),
 				new InputOption(
 					'app',
 					'a',
