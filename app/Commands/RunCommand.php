@@ -26,6 +26,12 @@ class RunCommand extends Command {
 					InputOption::VALUE_REQUIRED,
 					'Url of the pyroscope server. Example: https://your-pyroscope-sever.com'
 				),
+                new InputOption(
+                    'pyroscopeAuthToken',
+                    's',
+                    InputOption::VALUE_OPTIONAL,
+                    'Pyroscope Auth Token'
+                ),
 				new InputOption(
 					'app',
 					'a',
@@ -116,6 +122,8 @@ class RunCommand extends Command {
 			throw new InvalidArgumentException('sendSampleFutureLimit must be positive value');
 		}
 
+        $pyroscopeAuthToken = (string)$input->getOption('pyroscopeAuthToken');
+
 		$tags = [];
 		foreach ((array) $input->getOption('tags') as $tag) {
 			if (strpos($tag, '=') === false) {
@@ -140,7 +148,7 @@ class RunCommand extends Command {
 		$processor = new Processor(
 			$interval,
 			$batch,
-			new Sender($pyroscope, $app, $rateHz, $tags),
+			new Sender($pyroscope, $app, $rateHz, $tags, $pyroscopeAuthToken),
 			array_values(array_filter($plugins)),
 			$sendSampleFutureLimit,
 			$concurrentRequestLimit,
