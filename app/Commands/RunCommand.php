@@ -28,9 +28,9 @@ class RunCommand extends Command {
 				),
                 new InputOption(
                     'pyroscopeAuthToken',
-                    's',
+                    'auth',
                     InputOption::VALUE_OPTIONAL,
-                    'Pyroscope Auth Token'
+                    'Pyroscope Auth Token. Example: psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI'
                 ),
 				new InputOption(
 					'app',
