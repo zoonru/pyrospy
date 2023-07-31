@@ -122,7 +122,7 @@ class RunCommand extends Command {
 			throw new InvalidArgumentException('sendSampleFutureLimit must be positive value');
 		}
 
-        $pyroscopeAuthToken = (string)$input->getOption('pyroscopeAuthToken');
+		$pyroscopeAuthToken = (string)$input->getOption('pyroscopeAuthToken');
 
 		$tags = [];
 		foreach ((array) $input->getOption('tags') as $tag) {
