@@ -33,6 +33,10 @@ Options:
   -s, --pyroscope=STRING     Url of the pyroscope server. 
                              Example: https://your-pyroscope-sever.com
                              
+  -auth, --pyroscopeAuthToken=STRING     
+                             Pyroscope Auth Token. 
+                             Example: psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI
+                             
   -a, --app=STRING           Name of app. 
                              All samples will be saved under given app name.
                              Example: app

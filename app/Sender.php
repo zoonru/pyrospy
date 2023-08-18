@@ -18,6 +18,7 @@ final class Sender {
 		private readonly string $appName,
 		private readonly int $rateHz,
 		private readonly array $tags,
+		private readonly string $authToken = '',
 	) {
 		$this->client = (new HttpClientBuilder())
 			->retry(0)
@@ -34,6 +35,9 @@ final class Sender {
 			$request->setTlsHandshakeTimeout(5 * 60);
 			$request->setTransferTimeout(60 * 60);
 			$request->setInactivityTimeout(60 * 60);
+			if (!empty($this->authToken)) {
+				$request->addHeader('Authorization', 'Bearer ' . $this->authToken);
+			}
 			$response = $this->client->request($request);
 			if ($response->getStatus() === 200) {
 				return true;
