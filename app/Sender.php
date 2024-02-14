@@ -35,6 +35,7 @@ final class Sender {
 			$request->setTlsHandshakeTimeout(5 * 60);
 			$request->setTransferTimeout(60 * 60);
 			$request->setInactivityTimeout(60 * 60);
+            $request->setHeader('Content-Type', 'text/html');
 			if (!empty($this->authToken)) {
 				$request->addHeader('Authorization', 'Bearer ' . $this->authToken);
 			}
