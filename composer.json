@@ -1,5 +1,5 @@
 {
-    "name": "zoonru/pyrospy",
+    "name": "zoon/pyrospy",
     "description": "Adapter from phpspy to pyroscope",
     "type": "project",
     "license": "MIT",
