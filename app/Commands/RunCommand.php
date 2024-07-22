@@ -10,7 +10,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Zoon\PyroSpy\Plugins\PluginInterface;
 use Zoon\PyroSpy\Processor;
-use Zoon\PyroSpy\Sender;
+use Zoon\PyroSpy\SampleSender;
 
 class RunCommand extends Command {
 
@@ -148,7 +148,7 @@ class RunCommand extends Command {
 		$processor = new Processor(
 			$interval,
 			$batch,
-			new Sender($pyroscope, $app, $rateHz, $tags, $pyroscopeAuthToken),
+			new SampleSender($pyroscope, $app, $rateHz, $tags, $pyroscopeAuthToken),
 			array_values(array_filter($plugins)),
 			$sendSampleFutureLimit,
 			$concurrentRequestLimit,

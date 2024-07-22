@@ -6,7 +6,8 @@ use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
 
-final class Sender {
+final class SampleSender implements SampleSenderInterface
+{
 
 	private readonly HttpClient $client;
 
@@ -42,11 +43,11 @@ final class Sender {
 			$response = $this->client->request($request);
 			if ($response->getStatus() === 200) {
 				return true;
-			} else {
-				printf("\nerror on request to url '%s', status code: %s", $url, $response->getStatus());
-				return false;
 			}
-		} catch (\Throwable $exception) {
+            printf("\nerror on request to url '%s', status code: %s", $url, $response->getStatus());
+
+            return false;
+        } catch (\Throwable $exception) {
 			printf("\nerror on request to url '%s', exception message: %s", $url, $exception->getMessage());
 			return false;
 		}
@@ -74,7 +75,7 @@ final class Sender {
 		return $result;
 	}
 
-	public function getUrl(array $tags, int $fromTs, int $toTs): string {
+	private function getUrl(array $tags, int $fromTs, int $toTs): string {
 		$params = [
 			'name' => $this->getAppName($tags),
 			'from' => $fromTs,

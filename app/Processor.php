@@ -28,12 +28,16 @@ final class Processor {
 	 */
 	public function __construct(
 		private readonly int $interval,
-		private readonly int $batchLimit,
-		private readonly Sender $sender,
+		private readonly int $batchLimit, //Сколько трейсов за раз он будет накапливать в себе перед отправкой в очередь.
+		private readonly SampleSenderInterface $sender,
 		private readonly array $plugins,
 		int $sendSampleFutureLimit,
 		private readonly int $concurrentRequestLimit,
+        private ?\Amp\ByteStream\ReadableStream $dataReader = null
 	) {
+        if ($this->dataReader ===null){
+            $this->dataReader = getStdin();
+        }
 		$this->init();
 		$this->queue = new Queue($sendSampleFutureLimit);
 	}
@@ -55,7 +59,7 @@ final class Processor {
 		return async(function (): void {
 			$sample = [];
 
-			foreach (self::getLine() as $line) {
+			foreach ($this->getLine() as $line) {
 				$isEndOfTrace = $line === '';
 
 				if (!$isEndOfTrace) {
@@ -191,8 +195,8 @@ final class Processor {
 	/**
 	 * @return Generator<string>
 	 */
-	private static function getLine(): Generator {
-		foreach (splitLines(getStdin()) as $line) {
+	private function getLine(): Generator {
+		foreach (splitLines($this->dataReader) as $line) {
 			$line = trim($line);
 
 			//fix trace with eval
