@@ -7,8 +7,8 @@ use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
 
 /**
- * @phpstan-import-type TagsArray from Sample
- * @phpstan-import-type SamplesArray from Sample
+ * @psalm-import-type TagsArray from Sample
+ * @psalm-import-type SamplesArray from Sample
  */
 final class SampleSender implements SampleSenderInterface
 {

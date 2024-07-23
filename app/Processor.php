@@ -15,9 +15,9 @@ use function Amp\ByteStream\getStdin;
 use function Amp\ByteStream\splitLines;
 
 /**
- * @phpstan-import-type TagsArray from Sample
- * @phpstan-import-type SamplesArray from Sample
- * @phpstan-import-type TraceStruct from Sample
+ * @psalm-import-type TagsArray from Sample
+ * @psalm-import-type SamplesArray from Sample
+ * @psalm-import-type TraceStruct from Sample
  */
 
 final class Processor
@@ -36,7 +36,7 @@ final class Processor
      */
     public function __construct(
         private readonly int $interval,
-        private readonly int $batchLimit, //Сколько трейсов за раз он будет накапливать в себе перед отправкой в очередь.
+        private readonly int $batchLimit,
         private readonly SampleSenderInterface $sender,
         private readonly array $plugins,
         int $sendSampleFutureLimit,
@@ -66,7 +66,7 @@ final class Processor
     }
 
     /**
-     * @return Future<callable>
+     * @psalm-return Future<void>
      */
     private function runProducer(): Future
     {
@@ -88,6 +88,9 @@ final class Processor
                             self::checkTrace($tracePrepared);
                         } catch (Throwable $e) {
                             echo $e->getMessage() . PHP_EOL;
+                            /**
+                             * @psalm-suppress ForbiddenCode
+                             */
                             var_dump($trace);
                             continue;
                         }
@@ -129,7 +132,7 @@ final class Processor
     }
 
     /**
-     * @return Future<callable>
+     * @psalm-return Future<void>
      */
     private function runConsumer(): Future
     {
@@ -174,7 +177,7 @@ final class Processor
     {
         $tags = [];
         foreach ($sample as $item) {
-            if (!is_string($item) || substr($item, 0, 1) !== '#') {
+            if (substr($item, 0, 1) !== '#') {
                 continue;
             }
             $item = explode(' ', $item);

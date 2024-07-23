@@ -139,7 +139,11 @@ class RunCommand extends Command
         foreach ((array) $input->getOption('plugins') as $pluginPath) {
             if (is_dir($pluginPath)) {
                 $globPath = str_replace('//', '/', $pluginPath . '/*.php');
-                foreach (($files = glob($globPath)) ? $files : [] as $file) {
+                $foundFiles = glob($globPath);
+                if ($foundFiles === false) {
+                    $foundFiles = [];
+                }
+                foreach ($foundFiles as $file) {
                     $plugins[] = self::getClassFromPath($file);
                 }
             } else {
@@ -159,10 +163,14 @@ class RunCommand extends Command
         return Command::SUCCESS;
     }
 
+    /** @psalm-suppress MoreSpecificReturnType */
     private static function getClassFromPath(string $path): ?PluginInterface
     {
         if (substr($path, -4, 4) !== '.php') {
             throw new InvalidArgumentException('Plugin must be php file');
+        }
+        if (!file_exists($path)) {
+            throw new InvalidArgumentException('Plugin file not found');
         }
         require_once $path;
         $pathArray = explode('/', $path);
@@ -171,7 +179,7 @@ class RunCommand extends Command
             return null;
         }
         $class = "Zoon\PyroSpy\Plugins\\$class";
-        //@phpstan-ignore-next-line
+        /** @psalm-suppress LessSpecificReturnStatement */
         return new $class();
     }
 }

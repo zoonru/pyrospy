@@ -5,8 +5,8 @@ namespace Zoon\PyroSpy\Plugins;
 use Zoon\PyroSpy\Sample;
 
 /**
- * @phpstan-import-type TagsArray from Sample
- * @phpstan-import-type TraceStruct from Sample
+ * @psalm-import-type TagsArray from Sample
+ * @psalm-import-type TraceStruct from Sample
  */
 
 interface PluginInterface
