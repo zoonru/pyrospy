@@ -103,7 +103,7 @@ EOT,
 
 
 EOT
-    ,
+            ,
         ];
 
         yield 'It should send 2 samples (First two traces aggregated by the same tag, and the last one goes to the second sample)' => [
@@ -124,7 +124,7 @@ EOT
 
 
 EOT
-    ,
+            ,
         ];
 
 

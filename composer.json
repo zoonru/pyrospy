@@ -30,6 +30,8 @@
     "require-dev": {
         "psalm/phar": "^5.9",
         "phpunit/phpunit": "^11.2",
-        "zoltanka/bypass-readonly": "^0.0.4"
+        "zoltanka/bypass-readonly": "^0.0.4",
+        "phpstan/phpstan": "^1.11",
+        "friendsofphp/php-cs-fixer": "^3.59"
     }
 }
