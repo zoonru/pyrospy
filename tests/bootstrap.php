@@ -4,4 +4,4 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
-Zfekete\BypassReadonly\BypassReadonly::enable();
+DG\BypassFinals::enable();
