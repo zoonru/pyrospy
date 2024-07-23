@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PHPUnit\Framework\Attributes\DataProvider;
 
-class SampleTest extends PHPUnit\Framework\TestCase
+class ProcessorTest extends PHPUnit\Framework\TestCase
 {
     #[DataProvider('batchAggregationProvider')]
     public function testBatchAggregation(int $batchLimit, int $samplesSent, string $traces): void
