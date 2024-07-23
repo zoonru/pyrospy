@@ -95,6 +95,9 @@ final class Processor
                         foreach ($this->plugins as $plugin) {
                             [$tags, $tracePrepared] = $plugin->process($tags, $tracePrepared);
                         }
+                        if ($tracePrepared === []) {
+                            continue;
+                        }
 
                         $key = self::stringifyTrace($tracePrepared);
                         $this->groupTrace($tags, $key);
