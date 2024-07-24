@@ -28,6 +28,19 @@
         }
     },
     "require-dev": {
-        "psalm/phar": "^5.9"
+        "psalm/phar": "^5.9",
+        "phpunit/phpunit": "^11.2",
+        "friendsofphp/php-cs-fixer": "^3.59",
+        "dg/bypass-finals": "^1.8"
+    },
+    "scripts": {
+        "test:cs": "./vendor/bin/php-cs-fixer fix --diff --config=.php-cs-fixer.dist.php",
+        "test:psalm": "./vendor/bin/psalm.phar  --show-info=true",
+        "test:unit": "./vendor/bin/phpunit",
+        "test": [
+            "@test:cs",
+            "@test:psalm",
+            "@test:unit"
+        ]
     }
 }
