@@ -79,7 +79,7 @@ phpspy --max-depth=-1 --time-limit-ms=59000 --threads=100 --rate-hz=25 --buffer-
 
 namespace Zoon\PyroSpy\Plugins;
 
-class MyAvesomePlugin implements PluginInterface {
+class MyAwesomePlugin implements PluginInterface {
 
     public function process(array $tags, array $trace): array {
         //Modify tags and/or trace
@@ -92,6 +92,7 @@ Multiple plugins can be provided. Each plugin will get tags and trace from resul
 
 2. Add `--request-info=QCuP` to phpspy args, to add uri string to tags.
 3. Provide full path to it in pyrospy arguments.
+4. To ignore a trace, return an empty trace.
 
 Example:
 ```shell
