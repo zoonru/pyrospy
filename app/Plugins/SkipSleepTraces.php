@@ -14,7 +14,9 @@ final class SkipSleepTraces implements PluginInterface
         'Fiber::start',
         'Fiber::resume',
         'pcntl_wait',
-        'Pheanstalk::reserveWithTimeout',
+        'Pheanstalk\Pheanstalk::reserveWithTimeout',
+        'socket_read',
+        'stream_select',
     ];
 
     /**
