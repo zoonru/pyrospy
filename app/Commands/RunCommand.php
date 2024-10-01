@@ -30,7 +30,7 @@ class RunCommand extends Command {
 					'app',
 					'a',
 					InputOption::VALUE_REQUIRED,
-					'Name of app. Example: app',
+					'Name of app. Example: app'
 				),
 				new InputOption(
 					'rateHz',

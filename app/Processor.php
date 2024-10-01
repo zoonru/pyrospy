@@ -10,19 +10,27 @@ use Zoon\PyroSpy\Plugins\PluginInterface;
 
 final class Processor {
 
-	private int $interval;
-	private int $batchLimit;
+    /** @var int  */
+	private $interval;
 
-	private int $tsStart = 0;
-	private int $tsEnd;
+    /** @var int  */
+	private $batchLimit;
+
+    /** @var int  */
+	private $tsStart = 0;
+
+    /** @var int  */
+	private $tsEnd;
 	/**
 	 * @var array<string, array<string, int>>
 	 */
-	private array $results;
+	private $results;
 
-	private Sender $sender;
+    /** @var Sender */
+	private $sender;
     /** @var list<PluginInterface> */
-    private array $plugins = [];
+    /** @var array */
+    private $plugins = [];
 
 
     public function __construct(int $interval, int $batchLimit, Sender $sender, array $plugins = []) {

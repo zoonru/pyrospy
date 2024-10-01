@@ -6,15 +6,19 @@ use RuntimeException;
 
 class Sender {
 
-	private string $pyroscopeHost;
+
+    /** @var string  */
+	private $pyroscopeHost;
 	/** @var resource|\CurlHandle */
 	private $curl;
-	private string $appName;
+    /** @var string  */
+	private $appName;
 	/**
 	 * @var array<string, string>
 	 */
-	private array $tags;
-	private int $rateHz;
+	private $tags;
+    /** @var int  */
+	private $rateHz;
 
 	public function __construct(string $pyroscopeHost, string $appName, int $rateHz, array $tags = []) {
 		$this->pyroscopeHost = $pyroscopeHost;

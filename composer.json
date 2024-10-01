@@ -11,12 +11,13 @@
     ],
     "minimum-stability": "stable",
     "require": {
-        "php": ">=7.4",
+        "php": ">=7.2",
         "ext-mbstring": "*",
         "ext-json": "*",
         "ext-curl": "*",
         "symfony/console": "^5|^6",
-        "symfony/polyfill-php81": "*"
+        "symfony/polyfill-php81": "*",
+        "symfony/polyfill-php82": "*"
     },
     "autoload": {
         "psr-4": {
