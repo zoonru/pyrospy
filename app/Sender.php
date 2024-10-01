@@ -17,11 +17,15 @@ class Sender {
 	 * @var array<string, string>
 	 */
 	private $tags;
-    /** @var int  */
+    /** @var int */
 	private $rateHz;
 
-	public function __construct(string $pyroscopeHost, string $appName, int $rateHz, array $tags = []) {
+    /** @var string */
+    private $authToken = '';
+
+	public function __construct(string $pyroscopeHost, string $appName, int $rateHz, array $tags = [], string $pyroscopeAuthToken = '') {
 		$this->pyroscopeHost = $pyroscopeHost;
+        $this->authToken = $pyroscopeAuthToken;
 		$this->curl = curl_init();
 		if (!$this->curl) {
 			throw new RuntimeException('Cant init curl');
@@ -40,6 +44,13 @@ class Sender {
 		curl_setopt($this->curl, CURLOPT_URL, $url);
 		curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'POST');
 		curl_setopt($this->curl, CURLOPT_POSTFIELDS, self::prepareBody($samples));
+
+        if (!empty($this->authToken)) {
+            curl_setopt($this->curl, CURLOPT_HTTPHEADER, [
+                "Authorization: Bearer {$this->authToken}"
+            ]);
+        }
+
 		curl_exec($this->curl);
 		$info = curl_getinfo($this->curl);
 
