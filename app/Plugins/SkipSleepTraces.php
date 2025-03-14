@@ -14,6 +14,7 @@ final class SkipSleepTraces implements PluginInterface
         'Fiber::start',
         'Fiber::resume',
         'pcntl_wait',
+        'pcntl_waitpid',
         'socket_read',
         'stream_select',
         'socket_select',
