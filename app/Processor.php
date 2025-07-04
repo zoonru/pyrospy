@@ -229,14 +229,8 @@ final class Processor
         assert($this->dataReader instanceof ReadableStream);
         foreach (splitLines($this->dataReader) as $line) {
             $line = trim($line);
-
-            //fix trace with eval
-            if (strpos($line, ' : eval()\'d code:') !== false) {
-                $line = preg_replace('~\((\d+)\) : eval\(\)\'d code:.*$~u', ':$1', $line);
-                if ($line === null) {
-                    $line = 'eval() code replacement failure';
-                }
-            }
+            $line = self::fixEvalLine($line);
+            $line = self::fixClosureLine($line);
 
             yield $line;
         }
@@ -266,5 +260,25 @@ final class Processor
             $count += count($tagResuts);
         }
         return $count;
+    }
+
+    private static function fixEvalLine(string $line): string
+    {
+
+        if (strpos($line, ' : eval()\'d code:') !== false) {
+            $line = preg_replace('~\((\d+)\) : eval\(\)\'d code:.*$~u', ':$1', $line);
+            if ($line === null) {
+                $line = 'eval() code replacement failure';
+            }
+        }
+        return $line;
+    }
+
+    private static function fixClosureLine(string $line): string
+    {
+        if (preg_match('~({closure.*}):\d+~u', $line, $closure) && str_contains($closure[1], ' ')) {
+            $line = str_replace($closure[1], sprintf("{closure:%s} <closure>", md5($closure[1])), $line);
+        }
+        return $line;
     }
 }
