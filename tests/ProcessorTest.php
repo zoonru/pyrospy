@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PHPUnit\Framework\Attributes\DataProvider;
+use Zoon\PyroSpy\Sample;
 
 class ProcessorTest extends PHPUnit\Framework\TestCase
 {
@@ -15,6 +16,7 @@ class ProcessorTest extends PHPUnit\Framework\TestCase
         $processor = new \Zoon\PyroSpy\Processor(
             interval: 100500,
             batchLimit: $batchLimit,
+            aggregator: new \Zoon\PyroSpy\CpuTraceAggregator(),
             sender: $sender,
             plugins: [],
             sendSampleFutureLimit: 999999999,
@@ -73,6 +75,7 @@ EOT,
         $processor = new \Zoon\PyroSpy\Processor(
             interval: 100500,
             batchLimit: $batchLimit,
+            aggregator: new \Zoon\PyroSpy\CpuTraceAggregator(),
             sender: $sender,
             plugins: [],
             sendSampleFutureLimit: 999999999,
@@ -186,6 +189,66 @@ EOT
 
 EOT
             ,
+        ];
+    }
+
+    #[DataProvider('memorySamplesProvider')]
+    public function testMemoryProfiling(int $batchLimit, int $samplesSent, string $traces, Sample $expectedSample): void
+    {
+        $sender = $this->createMock(\Zoon\PyroSpy\SampleSenderInterface::class);
+        $sender
+            ->expects($this->exactly($samplesSent))
+            ->method('sendSample')
+            ->with(self::callback(function(Sample $sample) use($expectedSample): bool {
+                $this->assertEquals($expectedSample->samples, $sample->samples);
+                $this->assertEquals($expectedSample->tags, $sample->tags);
+                return true;
+            }));
+
+        $processor = new \Zoon\PyroSpy\Processor(
+            interval: 100500,
+            batchLimit: $batchLimit,
+            aggregator: new \Zoon\PyroSpy\MemoryTraceAggregator(),
+            sender: $sender,
+            plugins: [],
+            sendSampleFutureLimit: 999999999,
+            concurrentRequestLimit: 1,
+            dataReader: new \Amp\ByteStream\Payload($traces),
+        );
+
+        $processor->process();
+    }
+
+    public static function memorySamplesProvider(): Generator {
+        yield 'It should send 1 samples (all 3 traces aggregated into 1 sample)' => [
+            'batchLimit' => 3,
+            'samplesSent' => 1,
+            'traces' => <<<EOT
+                0 usleep <internal>:-1
+                1 <main> <internal>:-1
+                # ts = 1752168963.434583
+                # mem 10 30
+                
+                0 usleep <internal>:-1
+                1 <main> <internal>:-1
+                # ts = 1752168963.434583
+                # mem 20 30
+                
+                0 usleep <internal>:-1
+                1 <main> <internal>:-1
+                # ts = 1752168963.430870
+                # mem 30 30
+                
+                
+                EOT,
+            'expectedSample' => new Sample(
+                fromTs: 0,
+                toTs: 0,
+                samples: [
+                    '<main> (<internal>);usleep' => 20,
+                ],
+                tags: [],
+            ),
         ];
     }
 

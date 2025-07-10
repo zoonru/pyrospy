@@ -37,6 +37,10 @@ Options:
                              Pyroscope Auth Token. 
                              Example: psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI
                              
+  -m, --memory               Enable memory traces mode
+                             Get memory usage from 'mem' tag and send average memory usage for trace group
+                             Do not provide this option for CPU mode
+                             
   -a, --app=STRING           Name of app. 
                              All samples will be saved under given app name.
                              Example: app
@@ -71,7 +75,21 @@ phpspy --max-depth=-1 --time-limit-ms=59000 --threads=1024 --rate-hz=4 --buffer-
 phpspy --max-depth=-1 --time-limit-ms=59000 --threads=100 --rate-hz=25 --buffer-size=65536 -J m -P '-x "php-fpm|php-fpm[0-9]\.[0-9]" | shuf' 2> error_log.log | php pyrospy.php run --pyroscope=https://pyroscope.yourdomain.com --rateHz=25 --app=testApp --tags=host=server39 --tags=role=web
 ```
 
-## Plugins
+### Memory profiling
+ - add `--memory-usage` option to phpspy command to add current and maximum memory usage to tags
+ - add `--memory` option to pyrospy command to send average memory usage for traces instead of sum count
+```shell
+phpspy --max-depth=-1 --time-limit-ms=59000 --threads=1024 --memory-usage --rate-hz=4 --buffer-size=65536 -J m -P '-x "php|php[0-9]\.[0-9]" | shuf' 2> error_log.log | php pyrospy.php run --pyroscope=https://pyroscope.yourdomain.com --rateHz=4 --app=testAppMemory --tags=host=server39 --tags=role=cli --memory
+
+phpspy --max-depth=-1 --time-limit-ms=59000 --threads=100 --memory-usage --rate-hz=25 --buffer-size=65536 -J m -P '-x "php-fpm|php-fpm[0-9]\.[0-9]" | shuf' 2> error_log.log | php pyrospy.php run --pyroscope=https://pyroscope.yourdomain.com --rateHz=25 --app=testAppMemory --tags=host=server39 --tags=role=web --memory
+```
+
+Tee can be used to get memory usage and cpu samples from same phpspy stdout
+```shell
+phpspy --max-depth=-1 --time-limit-ms=59000 --threads=1024 --memory-usage --rate-hz=4 --buffer-size=65536 -J m -P '-x "php|php[0-9]\.[0-9]" | shuf' 2> error_log.log | tee >(php pyrospy.php run --pyroscope=https://pyroscope.yourdomain.com --rateHz=4 --app=testAppMemory --tags=host=server39 --tags=role=cli --memory) >(php pyrospy.php run --pyroscope=https://pyroscope.yourdomain.com --rateHz=4 --app=testApp --tags=host=server39 --tags=role=cli) >/dev/null
+```
+
+### Plugins
 
 1. Create `.php` plugin class. Put it in any place. Make sure it has `namespace Zoon\PyroSpy\Plugins;` and classname match filename.
 ```php
