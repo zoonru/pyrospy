@@ -8,9 +8,13 @@ use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Zoon\PyroSpy\CpuTraceAggregator;
+use Zoon\PyroSpy\MemoryTraceAggregator;
 use Zoon\PyroSpy\Plugins\PluginInterface;
 use Zoon\PyroSpy\Processor;
 use Zoon\PyroSpy\SampleSender;
+use Zoon\PyroSpy\SenderAggregationEnum;
+use Zoon\PyroSpy\SenderUnitsEnum;
 
 class RunCommand extends Command
 {
@@ -32,6 +36,12 @@ class RunCommand extends Command
                     'auth',
                     InputOption::VALUE_OPTIONAL,
                     'Pyroscope Auth Token. Example: psx-BWlqy_dW1Wxg6oBjuCWD28HxGCkB1Jfzt-jjtqHzrkzI',
+                ),
+                new InputOption(
+                    'memory',
+                    'm',
+                    InputOption::VALUE_NONE,
+                    'Process memory traces instead of CPU traces'
                 ),
                 new InputOption(
                     'app',
@@ -151,10 +161,27 @@ class RunCommand extends Command
             }
         }
 
+        if ($input->getOption('memory')) {
+            $aggregator = new MemoryTraceAggregator();
+            $sender = new SampleSender(
+                $pyroscope,
+                $app,
+                $rateHz,
+                $tags,
+                $pyroscopeAuthToken,
+                SenderUnitsEnum::Bytes,
+                SenderAggregationEnum::Average
+            );
+        } else {
+            $aggregator = new CpuTraceAggregator();
+            $sender = new SampleSender($pyroscope, $app, $rateHz, $tags, $pyroscopeAuthToken);
+        }
+
         $processor = new Processor(
             $interval,
             $batch,
-            new SampleSender($pyroscope, $app, $rateHz, $tags, $pyroscopeAuthToken),
+            $aggregator,
+            $sender,
             array_values(array_filter($plugins)),
             $sendSampleFutureLimit,
             $concurrentRequestLimit,

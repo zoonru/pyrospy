@@ -37,6 +37,7 @@ final class Processor
     public function __construct(
         private readonly int $interval,
         private readonly int $batchLimit,
+        private readonly TraceAggregatorAbstract $aggregator,
         private readonly SampleSenderInterface $sender,
         private readonly array $plugins,
         int $sendSampleFutureLimit,
@@ -52,7 +53,7 @@ final class Processor
 
     private function init(): void
     {
-        $this->results = [];
+        $this->aggregator->clear();
         $this->tsStart = time();
         $this->tsEnd = $this->tsStart + $this->interval;
     }
@@ -103,15 +104,15 @@ final class Processor
                         }
 
                         $key = self::stringifyTrace($tracePrepared);
-                        $this->groupTrace($tags, $key);
+                        $this->aggregator->addTrace($tags, $key);
 
                         $currentTime = time();
 
-                        if ($currentTime < $this->tsEnd && $this->countResults() < $this->batchLimit) {
+                        if ($currentTime < $this->tsEnd && $this->aggregator->countGrouppedTraces() < $this->batchLimit) {
                             continue;
                         }
 
-                        foreach ($this->results as $tagSerialized => $results) {
+                        foreach ($this->aggregator->getGrouppedTraces() as $tagSerialized => $results) {
                             $this->queue->push(new Sample($this->tsStart, $currentTime, $results, unserialize($tagSerialized)));
                         }
 
@@ -123,7 +124,7 @@ final class Processor
             }
 
             $currentTime = time();
-            foreach ($this->results as $tagSerialized => $results) {
+            foreach ($this->aggregator->getGrouppedTraces() as $tagSerialized => $results) {
                 $this->queue->push(new Sample($this->tsStart, $currentTime, $results, unserialize($tagSerialized)));
             }
 
@@ -184,7 +185,19 @@ final class Processor
             if (count($item) !== 4) {
                 continue;
             }
+
+            //# uri = /stat.php
             [$hashtag, $tag, $equalsign, $value] = $item;
+
+            if ($tag === 'ts') {
+                continue;
+            }
+            if ($tag === 'mem') {
+                // # mem 1653800 1659424
+                [$hashtag, $tag, $value, $maxUsage] = $item;
+                $value = (int) $value;
+            }
+
             $tags[$tag] = $value;
         }
         return $tags;
@@ -234,32 +247,6 @@ final class Processor
 
             yield $line;
         }
-    }
-
-    /**
-     * @param TagsArray $tags
-     * @param string $key
-     */
-    private function groupTrace(array $tags, string $key): void
-    {
-        ksort($tags);
-        $tagsKey = serialize($tags);
-        if (!array_key_exists($tagsKey, $this->results)) {
-            $this->results[$tagsKey] = [];
-        }
-        if (!array_key_exists($key, $this->results[$tagsKey])) {
-            $this->results[$tagsKey][$key] = 0;
-        }
-        $this->results[$tagsKey][$key]++;
-    }
-
-    private function countResults(): int
-    {
-        $count = 0;
-        foreach ($this->results as $tagResuts) {
-            $count += count($tagResuts);
-        }
-        return $count;
     }
 
     private static function fixEvalLine(string $line): string

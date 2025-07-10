@@ -23,6 +23,8 @@ final class SampleSender implements SampleSenderInterface
         private readonly int $rateHz,
         private readonly array $tags,
         private readonly string $authToken = '',
+        private readonly SenderUnitsEnum $units = SenderUnitsEnum::Samples,
+        private readonly SenderAggregationEnum $aggregation = SenderAggregationEnum::Sum,
     ) {
         $this->client = (new HttpClientBuilder())
             ->retry(0)
@@ -95,6 +97,8 @@ final class SampleSender implements SampleSenderInterface
             'until' => $toTs,
             'sampleRate' => $this->rateHz,
             'format' => 'folded',
+            'units' => $this->units->value,
+            'aggregationType' => $this->aggregation->value,
         ];
         return $this->pyroscopeHost . "/ingest?" . http_build_query($params);
     }
