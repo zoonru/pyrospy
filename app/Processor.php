@@ -7,8 +7,10 @@ use Amp\Future;
 use Amp\Pipeline\Queue;
 use Generator;
 use InvalidArgumentException;
+use Psr\Log\NullLogger;
 use Throwable;
 use Zoon\PyroSpy\Plugins\PluginInterface;
+use Psr\Log\LoggerInterface;
 
 use function Amp\async;
 use function Amp\ByteStream\getStdin;
@@ -42,6 +44,7 @@ final class Processor
         private readonly array $plugins,
         int $sendSampleFutureLimit,
         private readonly int $concurrentRequestLimit,
+        private readonly LoggerInterface $logger = new NullLogger(),
         private ?\Amp\ByteStream\ReadableStream $dataReader = null,
     ) {
         if ($this->dataReader === null) {
@@ -88,11 +91,7 @@ final class Processor
                             $tracePrepared = self::prepareTrace($trace);
                             self::checkTrace($tracePrepared);
                         } catch (Throwable $e) {
-                            echo $e->getMessage() . PHP_EOL;
-                            /**
-                             * @psalm-suppress ForbiddenCode
-                             */
-                            var_dump($trace);
+                            $this->logger->error($e->getMessage());
                             continue;
                         }
 
