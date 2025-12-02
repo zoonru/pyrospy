@@ -3,6 +3,10 @@
 namespace Zoon\PyroSpy\Commands;
 
 use InvalidArgumentException;
+use Monolog\Formatter\JsonFormatter;
+use Monolog\Handler\StreamHandler;
+use Monolog\Level;
+use Monolog\Logger;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -41,7 +45,7 @@ class RunCommand extends Command
                     'memory',
                     'm',
                     InputOption::VALUE_NONE,
-                    'Process memory traces instead of CPU traces'
+                    'Process memory traces instead of CPU traces',
                 ),
                 new InputOption(
                     'app',
@@ -98,6 +102,13 @@ class RunCommand extends Command
                     'Process trace and phpspy comments/tags with custom class. Can be class or folder with classes',
                     [],
                 ),
+                new InputOption(
+                    'sendTimeout',
+                    null,
+                    InputOption::VALUE_OPTIONAL,
+                    'TCP connect timeout in seconds',
+                    10.0,
+                ),
             ]))
         ;
     }
@@ -133,6 +144,31 @@ class RunCommand extends Command
         if ($sendSampleFutureLimit <= 0) {
             throw new InvalidArgumentException('sendSampleFutureLimit must be positive value');
         }
+
+        $sendTimeout = (float) $input->getOption('sendTimeout');
+        if ($sendTimeout <= 0) {
+            throw new InvalidArgumentException('sendTimeout must be positive value');
+        }
+
+        $verbosity = $output->getVerbosity();
+        $logLevel = match ($verbosity) {
+            OutputInterface::VERBOSITY_SILENT => Level::Emergency,
+            OutputInterface::VERBOSITY_QUIET => Level::Alert,
+            OutputInterface::VERBOSITY_NORMAL => Level::Error,
+            OutputInterface::VERBOSITY_VERBOSE => Level::Warning,
+            OutputInterface::VERBOSITY_VERY_VERBOSE => Level::Info,
+            OutputInterface::VERBOSITY_DEBUG => Level::Debug,
+        };
+        $handler = new StreamHandler(STDERR, $logLevel);
+        $formatter = new \Monolog\Formatter\LineFormatter(
+            ignoreEmptyContextAndExtra: true,
+        );
+        $formatter->includeStacktraces(
+            true,
+            static fn(string $line): string => $logLevel->toRFC5424Level() >= Level::Notice->toRFC5424Level() ? '' : $line,
+        );
+        $handler->setFormatter($formatter);
+        $logger = new Logger('pyrospy', [$handler]);
 
         $pyroscopeAuthToken = (string) $input->getOption('pyroscopeAuthToken');
 
@@ -170,11 +206,21 @@ class RunCommand extends Command
                 $tags,
                 $pyroscopeAuthToken,
                 SenderUnitsEnum::Bytes,
-                SenderAggregationEnum::Average
+                SenderAggregationEnum::Average,
+                sendTimeout: $sendTimeout,
+                logger: $logger,
             );
         } else {
             $aggregator = new CpuTraceAggregator();
-            $sender = new SampleSender($pyroscope, $app, $rateHz, $tags, $pyroscopeAuthToken);
+            $sender = new SampleSender(
+                $pyroscope,
+                $app,
+                $rateHz,
+                $tags,
+                $pyroscopeAuthToken,
+                logger: $logger,
+                sendTimeout: $sendTimeout,
+            );
         }
 
         $processor = new Processor(
@@ -185,8 +231,11 @@ class RunCommand extends Command
             array_values(array_filter($plugins)),
             $sendSampleFutureLimit,
             $concurrentRequestLimit,
+            $logger,
         );
+        $logger->info('pyrospy started');
         $processor->process();
+        $logger->info('pyrospy shutdown');
         return Command::SUCCESS;
     }
 
