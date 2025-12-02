@@ -199,7 +199,7 @@ EOT
         $sender
             ->expects($this->exactly($samplesSent))
             ->method('sendSample')
-            ->with(self::callback(function(Sample $sample) use($expectedSample): bool {
+            ->with(self::callback(function (Sample $sample) use ($expectedSample): bool {
                 $this->assertEquals($expectedSample->samples, $sample->samples);
                 $this->assertEquals($expectedSample->tags, $sample->tags);
                 return true;
@@ -219,7 +219,8 @@ EOT
         $processor->process();
     }
 
-    public static function memorySamplesProvider(): Generator {
+    public static function memorySamplesProvider(): Generator
+    {
         yield 'It should send 1 samples (all 3 traces aggregated into 1 sample)' => [
             'batchLimit' => 3,
             'samplesSent' => 1,

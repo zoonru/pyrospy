@@ -24,7 +24,8 @@ abstract class TraceAggregatorAbstract
      */
     abstract public function addTrace(array $tags, string $key): void;
 
-    public function countGrouppedTraces(): int {
+    public function countGrouppedTraces(): int
+    {
         $count = 0;
         foreach ($this->results as $tagResuts) {
             $count += count($tagResuts);
@@ -35,7 +36,8 @@ abstract class TraceAggregatorAbstract
     /**
      * @return ResultsArray
      */
-    public function getGrouppedTraces(): array {
+    public function getGrouppedTraces(): array
+    {
         return $this->results;
     }
 }

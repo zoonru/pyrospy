@@ -43,7 +43,7 @@ class MemoryTraceAggregator extends TraceAggregatorAbstract
         foreach ($this->results as $tagsKey => $tagResuts) {
             foreach ($tagResuts as $key => $traces) {
                 if ($traces) {
-                    $results[$tagsKey][$key] = (int)(array_sum($traces)/count($traces));
+                    $results[$tagsKey][$key] = (int) (array_sum($traces) / count($traces));
                 } else {
                     $results[$tagsKey][$key] = 0;
                 }
